@@ -7,7 +7,7 @@
     "dev": "bun run --hot ./server.ts",
     "up": "docker-compose up -d",
     "down": "docker-compose down",
-    "start": "bun run ./server.ts",
+    "start": "bun run --smol ./server.ts",
     "lint": "oxlint"
   },
   "dependencies": {
