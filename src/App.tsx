@@ -272,7 +272,7 @@ function TaskItem({ task, group }: { task: Task; group?: Group }) {
           <Input
             value={task.title}
             onChange={(e) => updateTask(task.id, { title: e.target.value })}
-            className="flex-1"
+            className="flex-1 w-[1px]"
           />
           <Input value={task.value} className="max-w-18" />
           <Button
@@ -363,7 +363,7 @@ function TaskForm() {
       className="flex flex-col gap-2 border-neutral-600 relative"
     >
       <div className="flex items-center gap-2">
-        <ChevronRight className="size-5 text-neutral-600 absolute -left-6" />
+        <ChevronRight className="size-5 text-neutral-600 md:absolute -left-6" />
         <Input
           type="text"
           value={title}
@@ -382,7 +382,7 @@ export function App() {
   const { isLoading } = useApiSync();
 
   return (
-    <div className="max-w-2xl mx-auto p-16 flex flex-col gap-16">
+    <div className="max-w-2xl mx-auto py-6 px-4 md:p-16 flex flex-col gap-16">
       {isLoading ? (
         <div className="flex items-center justify-center animate-spin">
           <Plus className="size-5 text-neutral-600" />
