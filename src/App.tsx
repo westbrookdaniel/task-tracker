@@ -17,7 +17,7 @@ function cn(...inputs: ClassValue[]) {
 interface Task {
   id: string;
   title: string;
-  value?: number;
+  value?: string;
   upgrade?: boolean;
   group?: string;
 }
@@ -102,7 +102,7 @@ function TaskItem({ task }: { task: Task }) {
         onChange={(e) => updateTask(task.id, { title: e.target.value })}
         className="flex-1"
       />
-      <Input value={task.value} className="max-w-25" />
+      <Input value={task.value} className="max-w-18" />
       <Button
         onClick={() => updateTask(task.id, { upgrade: !task.upgrade })}
         aria-label="upgrade"
