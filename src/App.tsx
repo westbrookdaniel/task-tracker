@@ -20,40 +20,41 @@ interface Task {
   title: string;
   value?: string;
   upgrade?: boolean;
+  groupId?: string;
 }
 
 interface Group {
   id: string;
   name: string;
-  taskIds: string[];
 }
 
 interface State {
   tasks: Task[];
   groups: Group[];
-  addTask: (task: Omit<Task, "id">) => void;
+  addTask: (task: Omit<Task, "id">, groupId?: string) => void;
   updateTask: (id: string, newTask: Partial<Omit<Task, "id">>) => void;
   deleteTask: (id: string) => void;
   addGroup: (name: string) => void;
   updateGroup: (id: string, newGroup: Partial<Omit<Group, "id">>) => void;
   deleteGroup: (id: string) => void;
-  addTaskToGroup: (taskId: string, groupId: string) => void;
-  removeTaskFromGroup: (taskId: string, groupId: string) => void;
+  setTaskGroup: (taskId: string, groupId: string | undefined) => void;
 }
 
 const useStore = create<State>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       tasks: [],
       groups: [],
-      addTask: (task: Omit<Task, "id">) => {
+      addTask: (task: Omit<Task, "id">, groupId?: string) => {
         if (!task.title.trim()) return;
-        set((state) => {
-          const newTasks = [
-            ...state.tasks,
-            { ...task, id: crypto.randomUUID() },
-          ];
 
+        set((state) => {
+          const newTask: Task = {
+            ...task,
+            id: crypto.randomUUID(),
+            groupId: groupId,
+          };
+          const newTasks = [...state.tasks, newTask];
           return { tasks: newTasks };
         });
       },
@@ -83,24 +84,7 @@ const useStore = create<State>()(
           const newTasks = state.tasks.filter((task) => task.id !== id);
           assert(newTasks.length === state.tasks.length - 1);
 
-          // Also remove the task from any groups it belongs to
-          const newGroups = state.groups.map((group) => ({
-            ...group,
-            taskIds: group.taskIds.filter((taskId) => taskId !== id),
-          }));
-
-          // Delete empty groups
-          const groupsToDelete = newGroups.filter(
-            (group) => group.taskIds.length === 0,
-          );
-
-          groupsToDelete.forEach((group) => {
-            set((state) => ({
-              groups: state.groups.filter((g) => g.id !== group.id),
-            }));
-          });
-
-          return { tasks: newTasks, groups: newGroups };
+          return { tasks: newTasks };
         });
       },
       addGroup: (name: string) => {
@@ -108,7 +92,6 @@ const useStore = create<State>()(
           const newGroup: Group = {
             id: crypto.randomUUID(),
             name: name,
-            taskIds: [],
           };
           const newGroups = [...state.groups, newGroup];
           return { groups: newGroups };
@@ -140,40 +123,31 @@ const useStore = create<State>()(
           const newGroups = state.groups.filter((group) => group.id !== id);
           assert(newGroups.length === state.groups.length - 1);
 
-          return { groups: newGroups };
-        });
-      },
-      addTaskToGroup: (taskId: string, groupId: string) => {
-        set((state) => {
-          const groupToUpdateIndex = state.groups.findIndex(
-            (group) => group.id === groupId,
+          const tasksToUngroup = state.tasks.filter(
+            (task) => task.groupId === id,
           );
-          assert(groupToUpdateIndex !== -1);
 
-          const newGroups = [...state.groups];
-          if (!newGroups[groupToUpdateIndex].taskIds.includes(taskId)) {
-            newGroups[groupToUpdateIndex].taskIds = [
-              ...newGroups[groupToUpdateIndex].taskIds,
-              taskId,
-            ];
-          }
+          tasksToUngroup.forEach((task) => {
+            get().setTaskGroup(task.id, undefined);
+          });
 
           return { groups: newGroups };
         });
       },
-      removeTaskFromGroup: (taskId: string, groupId: string) => {
+      setTaskGroup: (taskId: string, groupId: string | undefined) => {
         set((state) => {
-          const groupToUpdateIndex = state.groups.findIndex(
-            (group) => group.id === groupId,
+          const taskToUpdateIndex = state.tasks.findIndex(
+            (task) => task.id === taskId,
           );
-          assert(groupToUpdateIndex !== -1);
+          assert(taskToUpdateIndex !== -1);
 
-          const newGroups = [...state.groups];
-          newGroups[groupToUpdateIndex].taskIds = newGroups[
-            groupToUpdateIndex
-          ].taskIds.filter((id) => id !== taskId);
+          const newTasks = [...state.tasks];
+          newTasks[taskToUpdateIndex] = {
+            ...newTasks[taskToUpdateIndex],
+            groupId: groupId,
+          };
 
-          return { groups: newGroups };
+          return { tasks: newTasks };
         });
       },
     }),
@@ -185,44 +159,39 @@ function TaskList() {
   const groups = useStore((state) => state.groups);
   const tasks = useStore((state) => state.tasks);
 
-  const ungroupedTasks: Task[] = tasks.filter((t) =>
-    groups.every((g) => !g.taskIds.includes(t.id)),
-  );
-
   return (
     <>
       {groups.map((group) => {
-        if (!group.taskIds.length) return null;
+        const groupTasks = tasks.filter((task) => task.groupId === group.id);
+        if (!groupTasks.length) return null;
+
         return (
           <div key={group.id}>
             <h3 className="pb-1 text-neutral-500">{group.name}</h3>
             <ul>
-              {group.taskIds.map((taskId) => {
-                const task = tasks.find((task) => task.id === taskId);
-                if (!task) return null;
-                return (
-                  <TaskItem key={task.id} task={task} groupId={group.id} />
-                );
-              })}
+              {groupTasks.map((task) => (
+                <TaskItem key={task.id} task={task} group={group} />
+              ))}
             </ul>
           </div>
         );
       })}
       <ul>
-        {ungroupedTasks.map((task) => {
-          return <TaskItem key={task.id} task={task} />;
-        })}
+        {tasks
+          .filter((task) => !task.groupId)
+          .map((task) => (
+            <TaskItem key={task.id} task={task} />
+          ))}
       </ul>
     </>
   );
 }
 
-function TaskItem({ task, groupId }: { task: Task; groupId?: string }) {
+function TaskItem({ task, group }: { task: Task; group?: Group }) {
   const updateTask = useStore((state) => state.updateTask);
   const deleteTask = useStore((state) => state.deleteTask);
   const groups = useStore((state) => state.groups);
-  const addTaskToGroup = useStore((state) => state.addTaskToGroup);
-  const removeTaskFromGroup = useStore((state) => state.removeTaskFromGroup);
+  const setTaskGroup = useStore((state) => state.setTaskGroup);
   const deleteGroup = useStore((state) => state.deleteGroup);
   const addGroup = useStore((state) => state.addGroup);
   const [newGroupName, setNewGroupName] = useReactState("");
@@ -254,10 +223,10 @@ function TaskItem({ task, groupId }: { task: Task; groupId?: string }) {
                 "focus:outline-none",
               )}
             >
-              {groupId ? (
-                <ContextMenu.Item key={groupId} asChild>
+              {group ? (
+                <ContextMenu.Item key={group.id} asChild>
                   <Button
-                    onSelect={() => removeTaskFromGroup(task.id, groupId)}
+                    onSelect={() => setTaskGroup(task.id, undefined)}
                     className="justify-start px-3 text-neutral-700 w-full"
                   >
                     Ungroup
@@ -265,18 +234,18 @@ function TaskItem({ task, groupId }: { task: Task; groupId?: string }) {
                 </ContextMenu.Item>
               ) : null}
               {groups
-                .filter((group) => group.id !== groupId)
-                .map((group) => (
-                  <div key={group.id} className="flex items-center gap-2">
+                .filter((g) => g.id !== task.groupId)
+                .map((g) => (
+                  <div key={g.id} className="flex items-center gap-2">
                     <ContextMenu.Item asChild>
                       <Button
-                        onClick={() => addTaskToGroup(task.id, group.id)}
+                        onClick={() => setTaskGroup(task.id, g.id)}
                         className="justify-start px-3 text-neutral-700 flex-1"
                       >
-                        Add to {group.name}
+                        Add to {g.name}
                       </Button>
                     </ContextMenu.Item>
-                    <Button onClick={() => deleteGroup(group.id)}>
+                    <Button onClick={() => deleteGroup(g.id)}>
                       <Minus className="size-5" />
                     </Button>
                   </div>
