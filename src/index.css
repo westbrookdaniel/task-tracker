@@ -1,1 +1,17 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/forms";
+
+@layer base {
+  * {
+    font-family: "Space Mono", serif;
+  }
+
+  input, button, p, h1, h2, h3, h4, h5, h6 {
+	@apply text-neutral-700
+  }
+
+  html {
+    @apply bg-neutral-400;
+  }
+}
+
