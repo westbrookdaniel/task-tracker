@@ -43,7 +43,7 @@ interface State {
 
 const useStore = create<State>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       tasks: [],
       groups: [],
       addTask: (task: Omit<Task, "id">) => {
@@ -182,24 +182,48 @@ const useStore = create<State>()(
 );
 
 function TaskList() {
+  const groups = useStore((state) => state.groups);
   const tasks = useStore((state) => state.tasks);
 
-  if (tasks.length === 0) return null;
+  const ungroupedTasks: Task[] = tasks.filter((t) =>
+    groups.every((g) => !g.taskIds.includes(t.id)),
+  );
 
   return (
-    <ul>
-      {tasks.map((task) => (
-        <TaskItem key={task.id} task={task} />
-      ))}
-    </ul>
+    <>
+      {groups.map((group) => {
+        if (!group.taskIds.length) return null;
+        return (
+          <div key={group.id}>
+            <h3 className="pb-1 text-neutral-500">{group.name}</h3>
+            <ul>
+              {group.taskIds.map((taskId) => {
+                const task = tasks.find((task) => task.id === taskId);
+                if (!task) return null;
+                return (
+                  <TaskItem key={task.id} task={task} groupId={group.id} />
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
+      <ul>
+        {ungroupedTasks.map((task) => {
+          return <TaskItem key={task.id} task={task} />;
+        })}
+      </ul>
+    </>
   );
 }
 
-function TaskItem({ task }: { task: Task }) {
+function TaskItem({ task, groupId }: { task: Task; groupId?: string }) {
   const updateTask = useStore((state) => state.updateTask);
   const deleteTask = useStore((state) => state.deleteTask);
   const groups = useStore((state) => state.groups);
   const addTaskToGroup = useStore((state) => state.addTaskToGroup);
+  const removeTaskFromGroup = useStore((state) => state.removeTaskFromGroup);
+  const deleteGroup = useStore((state) => state.deleteGroup);
   const addGroup = useStore((state) => state.addGroup);
   const [newGroupName, setNewGroupName] = useReactState("");
 
@@ -225,21 +249,38 @@ function TaskItem({ task }: { task: Task }) {
           <ContextMenu.Portal>
             <ContextMenu.Content
               className={cn(
-                "flex flex-col gap-1",
+                "flex flex-col",
                 "z-50 bg-neutral-300 p-2",
                 "focus:outline-none",
               )}
             >
-              {groups.map((group) => (
-                <ContextMenu.Item
-                  key={group.id}
-                  onSelect={() => addTaskToGroup(task.id, group.id)}
-                  asChild
-                >
-                  <Button className="justify-start px-3 text-neutral-700 w-full">{group.name}</Button>
+              {groupId ? (
+                <ContextMenu.Item key={groupId} asChild>
+                  <Button
+                    onSelect={() => removeTaskFromGroup(task.id, groupId)}
+                    className="justify-start px-3 text-neutral-700 w-full"
+                  >
+                    Ungroup
+                  </Button>
                 </ContextMenu.Item>
-              ))}
-              <ContextMenu.Separator />
+              ) : null}
+              {groups
+                .filter((group) => group.id !== groupId)
+                .map((group) => (
+                  <div key={group.id} className="flex items-center gap-2">
+                    <ContextMenu.Item asChild>
+                      <Button
+                        onClick={() => addTaskToGroup(task.id, group.id)}
+                        className="justify-start px-3 text-neutral-700 flex-1"
+                      >
+                        Add to {group.name}
+                      </Button>
+                    </ContextMenu.Item>
+                    <Button onClick={() => deleteGroup(group.id)}>
+                      <Minus className="size-5" />
+                    </Button>
+                  </div>
+                ))}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -273,6 +314,7 @@ function TaskForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!title.trim()) return;
     addTask({ title });
     setTitle("");
   };
@@ -280,18 +322,20 @@ function TaskForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex items-center gap-2 border-neutral-600 relative"
+      className="flex flex-col gap-2 border-neutral-600 relative"
     >
-      <ChevronRight className="size-5 text-neutral-600 absolute -left-6" />
-      <Input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        className="border-0 flex-1"
-      />
-      <Button type="submit">
-        <Plus className="size-5" />
-      </Button>
+      <div className="flex items-center gap-2">
+        <ChevronRight className="size-5 text-neutral-600 absolute -left-6" />
+        <Input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="border-0 flex-1"
+        />
+        <Button type="submit">
+          <Plus className="size-5" />
+        </Button>
+      </div>
     </form>
   );
 }
