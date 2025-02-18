@@ -1,11 +1,13 @@
 import { ArrowUp, ChevronRight, Minus, Plus } from "lucide-react";
-import { useState as useReactState } from "react";
+import { useState as useReactState, useEffect, useState } from "react";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import { clsx } from "clsx";
 import type { ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import * as ContextMenu from "@radix-ui/react-context-menu";
+
+// this isnt secure but its just to stop lazy bots
+const API_KEY = "12345";
 
 function assert(condition: boolean, message?: string): void {
   if (!condition) throw new Error(`Assertion failed: ${message ?? "Error"}`);
@@ -38,122 +40,189 @@ interface State {
   updateGroup: (id: string, newGroup: Partial<Omit<Group, "id">>) => void;
   deleteGroup: (id: string) => void;
   setTaskGroup: (taskId: string, groupId: string | undefined) => void;
+  initialize: (data: State) => void;
 }
 
-const useStore = create<State>()(
-  persist(
-    (set, get) => ({
-      tasks: [],
-      groups: [],
-      addTask: (task: Omit<Task, "id">, groupId?: string) => {
-        if (!task.title.trim()) return;
+const useStore = create<State>()((set, get) => ({
+  tasks: [],
+  groups: [],
+  addTask: (task: Omit<Task, "id">, groupId?: string) => {
+    if (!task.title.trim()) return;
 
-        set((state) => {
-          const newTask: Task = {
-            ...task,
-            id: crypto.randomUUID(),
-            groupId: groupId,
-          };
-          const newTasks = [...state.tasks, newTask];
-          return { tasks: newTasks };
-        });
-      },
-      updateTask: (id: string, newTask: Partial<Omit<Task, "id">>) => {
-        set((state) => {
-          const taskToUpdateIndex = state.tasks.findIndex(
-            (task) => task.id === id,
-          );
-          assert(taskToUpdateIndex !== -1);
+    set((state) => {
+      const newTask: Task = {
+        ...task,
+        id: crypto.randomUUID(),
+        groupId: groupId,
+      };
+      const newTasks = [...state.tasks, newTask];
+      return { tasks: newTasks };
+    });
+  },
+  updateTask: (id: string, newTask: Partial<Omit<Task, "id">>) => {
+    set((state) => {
+      const taskToUpdateIndex = state.tasks.findIndex((task) => task.id === id);
+      assert(taskToUpdateIndex !== -1);
 
-          const newTasks = [...state.tasks];
-          newTasks[taskToUpdateIndex] = {
-            ...newTasks[taskToUpdateIndex],
-            ...newTask,
-          };
+      const newTasks = [...state.tasks];
+      newTasks[taskToUpdateIndex] = {
+        ...newTasks[taskToUpdateIndex],
+        ...newTask,
+      };
 
-          return { tasks: newTasks };
-        });
-      },
-      deleteTask: (id: string) => {
-        set((state) => {
-          const taskToDeleteIndex = state.tasks.findIndex(
-            (task) => task.id === id,
-          );
-          assert(taskToDeleteIndex !== -1);
+      return { tasks: newTasks };
+    });
+  },
+  deleteTask: (id: string) => {
+    set((state) => {
+      const taskToDeleteIndex = state.tasks.findIndex((task) => task.id === id);
+      assert(taskToDeleteIndex !== -1);
 
-          const newTasks = state.tasks.filter((task) => task.id !== id);
-          assert(newTasks.length === state.tasks.length - 1);
+      const newTasks = state.tasks.filter((task) => task.id !== id);
+      assert(newTasks.length === state.tasks.length - 1);
 
-          return { tasks: newTasks };
-        });
-      },
-      addGroup: (name: string) => {
-        set((state) => {
-          const newGroup: Group = {
-            id: crypto.randomUUID(),
-            name: name,
-          };
-          const newGroups = [...state.groups, newGroup];
-          return { groups: newGroups };
-        });
-      },
-      updateGroup: (id: string, newGroup: Partial<Omit<Group, "id">>) => {
-        set((state) => {
-          const groupToUpdateIndex = state.groups.findIndex(
-            (group) => group.id === id,
-          );
-          assert(groupToUpdateIndex !== -1);
+      return { tasks: newTasks };
+    });
+  },
+  addGroup: (name: string) => {
+    set((state) => {
+      const newGroup: Group = {
+        id: crypto.randomUUID(),
+        name: name,
+      };
+      const newGroups = [...state.groups, newGroup];
+      return { groups: newGroups };
+    });
+  },
+  updateGroup: (id: string, newGroup: Partial<Omit<Group, "id">>) => {
+    set((state) => {
+      const groupToUpdateIndex = state.groups.findIndex(
+        (group) => group.id === id,
+      );
+      assert(groupToUpdateIndex !== -1);
 
-          const newGroups = [...state.groups];
-          newGroups[groupToUpdateIndex] = {
-            ...newGroups[groupToUpdateIndex],
-            ...newGroup,
-          };
+      const newGroups = [...state.groups];
+      newGroups[groupToUpdateIndex] = {
+        ...newGroups[groupToUpdateIndex],
+        ...newGroup,
+      };
 
-          return { groups: newGroups };
-        });
-      },
-      deleteGroup: (id: string) => {
-        set((state) => {
-          const groupToDeleteIndex = state.groups.findIndex(
-            (group) => group.id === id,
-          );
-          assert(groupToDeleteIndex !== -1);
+      return { groups: newGroups };
+    });
+  },
+  deleteGroup: (id: string) => {
+    set((state) => {
+      const groupToDeleteIndex = state.groups.findIndex(
+        (group) => group.id === id,
+      );
+      assert(groupToDeleteIndex !== -1);
 
-          const newGroups = state.groups.filter((group) => group.id !== id);
-          assert(newGroups.length === state.groups.length - 1);
+      const newGroups = state.groups.filter((group) => group.id !== id);
+      assert(newGroups.length === state.groups.length - 1);
 
-          const tasksToUngroup = state.tasks.filter(
-            (task) => task.groupId === id,
-          );
+      const tasksToUngroup = state.tasks.filter((task) => task.groupId === id);
 
-          tasksToUngroup.forEach((task) => {
-            get().setTaskGroup(task.id, undefined);
-          });
+      tasksToUngroup.forEach((task) => {
+        get().setTaskGroup(task.id, undefined);
+      });
 
-          return { groups: newGroups };
-        });
-      },
-      setTaskGroup: (taskId: string, groupId: string | undefined) => {
-        set((state) => {
-          const taskToUpdateIndex = state.tasks.findIndex(
-            (task) => task.id === taskId,
-          );
-          assert(taskToUpdateIndex !== -1);
+      return { groups: newGroups };
+    });
+  },
+  setTaskGroup: (taskId: string, groupId: string | undefined) => {
+    set((state) => {
+      const taskToUpdateIndex = state.tasks.findIndex(
+        (task) => task.id === taskId,
+      );
+      assert(taskToUpdateIndex !== -1);
 
-          const newTasks = [...state.tasks];
-          newTasks[taskToUpdateIndex] = {
-            ...newTasks[taskToUpdateIndex],
-            groupId: groupId,
-          };
+      const newTasks = [...state.tasks];
+      newTasks[taskToUpdateIndex] = {
+        ...newTasks[taskToUpdateIndex],
+        groupId: groupId,
+      };
 
-          return { tasks: newTasks };
-        });
-      },
-    }),
-    { name: "dan-tasks-storage" },
-  ),
-);
+      return { tasks: newTasks };
+    });
+  },
+  initialize: (data: State) => {
+    set(() => data);
+  },
+}));
+
+function debounce<T extends (...args: any[]) => void>(
+  func: T,
+  delay: number,
+): (...args: Parameters<T>) => void {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  return (...args: Parameters<T>) => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+
+    timeoutId = setTimeout(() => {
+      func(...args);
+    }, delay);
+  };
+}
+
+async function getGroup(id: string): Promise<State | null> {
+  try {
+    const response = await fetch(`/api/groups?id=${id}&apikey=${API_KEY}`);
+    const data = await response.json();
+    if (!data.data) return null;
+    return JSON.parse(data.data);
+  } catch (error) {
+    console.error("Error fetching group:", error);
+    return null;
+  }
+}
+
+async function putGroup(id: string, body: State): Promise<void> {
+  try {
+    const response = await fetch("/api/groups", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        apikey: API_KEY,
+        id: id,
+        data: JSON.stringify(body),
+      }),
+    });
+    if (!response.ok) console.error(`Failed to put group: ${response.status}`);
+  } catch (error) {
+    console.error("Error putting group:", error);
+  }
+}
+
+const debouncedPutGroup = debounce(putGroup, 1000);
+
+function useApiSync() {
+  const initialize = useStore((state) => state.initialize);
+  const store = useStore((state) => state);
+  const groupId = window.location.pathname.slice(1);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadGroup() {
+      try {
+        setIsLoading(true);
+        const data = await getGroup(groupId);
+        if (data) initialize(data);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    if (groupId) loadGroup();
+  }, [groupId, initialize]);
+
+  useEffect(() => {
+    if (groupId) debouncedPutGroup(groupId, store);
+  }, [store, groupId]);
+
+  return { isLoading };
+}
 
 function TaskList() {
   const groups = useStore((state) => state.groups);
@@ -310,10 +379,20 @@ function TaskForm() {
 }
 
 export function App() {
+  const { isLoading } = useApiSync();
+
   return (
     <div className="max-w-2xl mx-auto p-16 flex flex-col gap-16">
-      <TaskList />
-      <TaskForm />
+      {isLoading ? (
+        <div className="flex items-center justify-center animate-spin">
+          <Plus className="size-5 text-neutral-600" />
+        </div>
+      ) : (
+        <>
+          <TaskList />
+          <TaskForm />
+        </>
+      )}
     </div>
   );
 }

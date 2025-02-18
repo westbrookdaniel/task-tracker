@@ -116,18 +116,6 @@ const routes = {
       return new Response(null, { status: 204 });
     },
   },
-  "/api/groups/:id": {
-    GET: async (req: Request) => {
-      const urlParts = req.url.split("/");
-      const id = urlParts[urlParts.length - 1];
-
-      const result = await sql`SELECT * FROM groups WHERE id = ${id}`;
-      const group = result[0];
-
-      if (!group) return new Response("Not Found", { status: 404 });
-      return Response.json(group);
-    },
-  },
 };
 
 serve({
@@ -152,6 +140,7 @@ serve({
           try {
             return await handler(req);
           } catch (error: any) {
+            console.error(error);
             return new Response(error.message || "Internal Server Error", {
               status: 500,
             });
