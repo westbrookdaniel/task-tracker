@@ -8,8 +8,7 @@
     "up": "docker-compose up -d",
     "down": "docker-compose down",
     "start": "bun run ./server.ts",
-    "lint": "oxlint",
-    "preview": "vite preview"
+    "lint": "oxlint"
   },
   "dependencies": {
     "@radix-ui/react-context-menu": "^2.2.6",
