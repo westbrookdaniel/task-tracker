@@ -142,6 +142,8 @@ serve({
     const path = url.pathname;
     assert(path != null);
 
+    console.log(req.method, path, new Date()); // some debug
+
     for (const routePath in routes) {
       if (matchRoute(path, routePath)) {
         const handlers = routes[routePath];
